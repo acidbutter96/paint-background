@@ -1,5 +1,5 @@
 {
-  "name": "background-next",
+  "name": "@devbutter/paint-background",
   "version": "0.1.0",
   "private": true,
   "scripts": {
