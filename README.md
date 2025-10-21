@@ -1,1 +1,49 @@
-# Background component (Next.js)\n\nEste diretório contém um componente React/Next.js que reproduz o background WebGL do projeto original. O componente inicializa um canvas com shaders GLSL e o posiciona atrás do conteúdo da aplicação.\n\n## Como usar\n\nRecomendo carregar o componente apenas no cliente (SSR desabilitado). Exemplos:\n\n- App Router (`app/layout.tsx`, Next 13+):\n\n```tsx\n// app/layout.tsx\nimport dynamic from 'next/dynamic';\nconst Background = dynamic(() => import('../components/Background'), { ssr: false });\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="pt-BR">\n      <body>\n        <Background />\n        {children}\n      </body>\n    </html>\n  );\n}\n```\n\n- Pages Router (`pages/_app.tsx`):\n\n```tsx\n// pages/_app.tsx\nimport type { AppProps } from 'next/app';\nimport dynamic from 'next/dynamic';\nconst Background = dynamic(() => import('../components/Background'), { ssr: false });\n\nexport default function MyApp({ Component, pageProps }: AppProps) {\n  return (\n    <>\n      <Background />\n      <Component {...pageProps} />\n    </>\n  );\n}\n```\n\n## Observações\n- O componente usa WebGL e `window`/`document`, portanto precisa rodar no cliente.\n- O canvas é posicionado com `z-index: -1` e `pointer-events: none` para atuar como plano de fundo sem bloquear interações.\n- Se você quiser pausar a animação quando a aba estiver em background, é possível adicionar `document.visibilityState` checks no loop de render.\n\nSe quiser, posso também criar automaticamente um exemplo `pages/_app.tsx` ou `app/layout.tsx` no seu projeto Next.js — quer que eu adicione isso?\n
+# paint-background
+
+A tiny React client component that renders a full-screen WebGL background. Designed for Next.js apps (Client Component).
+
+## Install
+
+From npm (after publishing):
+
+```bash
+npm i paint-background
+```
+
+Or install directly from git (for testing):
+
+```bash
+npm i git+ssh://git@github.com:acidbutter96/paint-background.git
+```
+
+Local pack test:
+
+```bash
+# from packages/background-lib
+npm pack
+# then in another project: npm i ./paint-background-1.0.0.tgz
+```
+
+## Usage
+
+In a Next.js App Router (app/layout.tsx), ensure you render it as a Client Component or import from a client wrapper.
+
+```tsx
+import dynamic from 'next/dynamic';
+import 'react';
+
+const Background = (await import('paint-background')).Background;
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        <Background />
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+Note: This package declares `react` and `react-dom` as peerDependencies. Your project must provide them.
