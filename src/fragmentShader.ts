@@ -145,6 +145,38 @@ float snoise(vec3 v)
 
         gl_FragColor = vec4(color,1.0);
     }
+    
+    // Palette helper: return interpolated color from a list of paint-like colors
+    vec3 paletteAt(float i) {
+        // 14 colors (index 0..13)
+        if (i < 0.5) return vec3(255.0/255.0, 120.0/255.0, 180.0/255.0); // pink
+        if (i < 1.5) return vec3(153.0/255.0, 204.0/255.0, 255.0/255.0); // lightBlue
+        if (i < 2.5) return vec3(180.0/255.0, 255.0/255.0, 100.0/255.0); // lime
+        if (i < 3.5) return vec3(54.0/255.0, 176.0/255.0, 170.0/255.0); // teal
+        if (i < 4.5) return vec3(175.0/255.0, 122.0/255.0, 197.0/255.0); // purple
+        if (i < 5.5) return vec3(255.0/255.0, 127.0/255.0, 110.0/255.0); // coral
+        if (i < 6.5) return vec3(75.0/255.0,144.0/255.0,210.0/255.0); // deepBlue
+        if (i < 7.5) return vec3(252.0/255.0,244.0/255.0,111.0/255.0); // yellowSoft
+        if (i < 8.5) return vec3(244.0/255.0,238.0/255.0,87.0/255.0); // paleYellow
+        if (i < 9.5) return vec3(242.0/255.0,232.0/255.0,99.0/255.0); // warmYellow
+        if (i < 10.5) return vec3(242.0/255.0,205.0/255.0,96.0/255.0); // amber
+        if (i < 11.5) return vec3(255.0/255.0, 90.0/255.0, 130.0/255.0); // magenta
+        if (i < 12.5) return vec3(170.0/255.0, 255.0/255.0, 220.0/255.0); // mint
+        return vec3(255.0/255.0,165.0/255.0, 70.0/255.0); // orange
+    }
+
+    vec3 paletteMix(float idx) {
+        // palette length is 14
+        float n = 14.0;
+        // wrap idx into [0, n)
+        float i = mod(idx, n);
+        float i0 = floor(i);
+        float f = fract(i);
+        vec3 c0 = paletteAt(i0 + 0.0);
+        vec3 c1 = paletteAt(i0 + 1.0);
+        return mix(c0, c1, f);
+    }
+
     `;
 
 export default fragmentShader;
