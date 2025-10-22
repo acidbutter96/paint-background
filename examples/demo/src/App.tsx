@@ -1,5 +1,5 @@
 import React from 'react'
-import { BackgroundClient as Background } from '../../../src';
+import { BackgroundClient as Background } from '@devbutter/paint-background';
 
 export default function App() {
   return (
