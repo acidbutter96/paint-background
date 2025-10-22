@@ -21,6 +21,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var src_exports = {};
 __export(src_exports, {
   Background: () => Background_default,
+  BackgroundClient: () => BackgroundClient,
   default: () => Background_default
 });
 module.exports = __toCommonJS(src_exports);
@@ -161,23 +162,23 @@ float snoise(vec3 v)
         vec2 vel = vec2(u_time*.1);
         st.xy *= 0.4;
         float r = snoise(vec3(st.x,st.y,u_time * 0.1));
-+	  
-+	if(r > 0.60){
-+		color = color5;
-+	} else if(r > 0.20){
-+		color = color4;
-+	} else if(r > -0.20){
-+		color = color3;
-+	} else if(r > -0.60){
-+		color = color2;
-+	} else if(r > -2.0){
-+		color = color1;
-+	}
-+	  
-+
-+	gl_FragColor = vec4(color,1.0);
-+    }
-+    `;
+    	  
+    	if(r > 0.60){
+    		color = color5;
+    	} else if(r > 0.20){
+    		color = color4;
+    	} else if(r > -0.20){
+    		color = color3;
+    	} else if(r > -0.60){
+    		color = color2;
+    	} else if(r > -2.0){
+    		color = color1;
+    	}
+    	  
+    
+    	gl_FragColor = vec4(color,1.0);
+    }
+    `;
     function compileShader(localGl, type, source) {
       const shader = localGl.createShader(type);
       if (!shader)
@@ -275,7 +276,14 @@ float snoise(vec3 v)
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("canvas", { ref: canvasRef, className: _default.canvas });
 };
 var Background_default = Background;
+
+// src/BackgroundClient.tsx
+var import_jsx_runtime2 = require("react/jsx-runtime");
+function BackgroundClient() {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Background_default, {});
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  Background
+  Background,
+  BackgroundClient
 });
