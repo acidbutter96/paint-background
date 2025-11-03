@@ -1,9 +1,68 @@
 "use client";
 import React, { useEffect, useRef } from 'react';
 import styles from './Background.module.css';
-import fragmentShaderSource from './fragmentShader';
+import createFragmentShaderSource, { DEFAULT_COLORS, SHADER_MAX_COLOR_SLOTS } from './fragmentShader';
 
-const Background: React.FC = () => {
+type BackgroundProps = {
+  colors?: string[];
+};
+
+const HEX_COLOR_REGEX = /^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+function parseHexColorToFloats(value: string): [number, number, number] | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  if (!HEX_COLOR_REGEX.test(normalized)) return null;
+  let hex = normalized.slice(1);
+  if (hex.length === 3) {
+    hex = hex.split('').map((char) => char + char).join('');
+  }
+  const intVal = parseInt(hex, 16);
+  const r = ((intVal >> 16) & 255) / 255;
+  const g = ((intVal >> 8) & 255) / 255;
+  const b = (intVal & 255) / 255;
+  return [r, g, b];
+}
+
+function buildPaletteBuffer(primary: string[], fallback: string[], capacity: number) {
+  const size = Math.max(1, capacity);
+  const buffer = new Float32Array(size * 3);
+
+  const fillFrom = (source: string[]) => {
+    let filled = 0;
+    for (const color of source) {
+      const parsed = parseHexColorToFloats(color);
+      if (!parsed) continue;
+      buffer[filled * 3] = parsed[0];
+      buffer[filled * 3 + 1] = parsed[1];
+      buffer[filled * 3 + 2] = parsed[2];
+      filled += 1;
+      if (filled >= size) break;
+    }
+    return filled;
+  };
+
+  let used = fillFrom(primary);
+
+  if (used === 0) {
+    buffer.fill(0);
+    used = fillFrom(fallback);
+  }
+
+  if (used === 0) {
+    buffer[0] = 1;
+    buffer[1] = 1;
+    buffer[2] = 1;
+    used = 1;
+  }
+
+  return { buffer, length: Math.min(used, size) };
+}
+
+const RESERVED_FRAGMENT_UNIFORMS = 6;
+
+const Background: React.FC<BackgroundProps> = ({ colors }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(Date.now());
@@ -13,12 +72,21 @@ const Background: React.FC = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    startTimeRef.current = Date.now();
+
     const glRaw = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
     if (!glRaw) {
       console.warn('WebGL not supported');
       return;
     }
     const gl = glRaw;
+
+    const maxFragmentUniformVectors = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) as number;
+    const paletteCapacity = Math.max(
+      1,
+      Math.min(SHADER_MAX_COLOR_SLOTS, maxFragmentUniformVectors - RESERVED_FRAGMENT_UNIFORMS)
+    );
+    const fragmentShaderSource = createFragmentShaderSource(paletteCapacity);
 
     const vertexShaderSource = `attribute vec2 a_position;\nvoid main() {\n  gl_Position = vec4(a_position, 0, 1);\n}`;
 
@@ -68,8 +136,23 @@ const Background: React.FC = () => {
     const locationOfMouse = gl.getUniformLocation(program, 'u_mouse');
     const locationOfXpos = gl.getUniformLocation(program, 'u_xpos');
     const locationOfYpos = gl.getUniformLocation(program, 'u_ypos');
+    const locationOfPalette = gl.getUniformLocation(program, 'u_palette[0]');
+    const locationOfPaletteLength = gl.getUniformLocation(program, 'u_paletteLength');
 
     const mouse: [number, number] = [0, 0];
+    const paletteSource = Array.isArray(colors) && colors.length > 0 ? colors : DEFAULT_COLORS;
+    const { buffer: paletteBuffer, length: paletteLength } = buildPaletteBuffer(
+      paletteSource,
+      DEFAULT_COLORS,
+      paletteCapacity
+    );
+
+    if (locationOfPalette && paletteBuffer.length) {
+      gl.uniform3fv(locationOfPalette, paletteBuffer);
+    }
+    if (locationOfPaletteLength) {
+      gl.uniform1i(locationOfPaletteLength, paletteLength);
+    }
 
     function resizeCanvas() {
       if (!canvas) return;
@@ -119,7 +202,7 @@ const Background: React.FC = () => {
         // ignore cleanup errors
       }
     };
-  }, []);
+  }, [colors]);
 
   return <canvas ref={canvasRef} className={styles.canvas} />;
 };

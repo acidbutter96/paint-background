@@ -4,29 +4,28 @@ import { useEffect, useRef } from "react";
 // src/Background.module.css
 var _default = {};
 
-// src/Background.tsx
-import { jsx } from "react/jsx-runtime";
-var Background = () => {
-  const canvasRef = useRef(null);
-  const rafRef = useRef(null);
-  const startTimeRef = useRef(Date.now());
-  useEffect(() => {
-    if (typeof window === "undefined")
-      return;
-    const canvas = canvasRef.current;
-    if (!canvas)
-      return;
-    const glRaw = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-    if (!glRaw) {
-      console.warn("WebGL not supported");
-      return;
-    }
-    const gl = glRaw;
-    const vertexShaderSource = `attribute vec2 a_position;
-void main() {
-  gl_Position = vec4(a_position, 0, 1);
-}`;
-    const fragmentShaderSource = `#ifdef GL_ES
+// src/fragmentShader.ts
+var DEFAULT_COLORS = [
+  "#36B0AA",
+  "#99CCFF",
+  "#FF78B4",
+  "#B4FF64",
+  "#AF7AC5",
+  "#FF7F6E",
+  "#4B90D2",
+  "#FCF46F",
+  "#F4EE57",
+  "#F2E863",
+  "#F2CD60",
+  "#FFFFFF",
+  "#FF5A82",
+  "#AAFFDC",
+  "#FFA546"
+];
+var SHADER_MAX_COLOR_SLOTS = 32;
+function createFragmentShaderSource(maxColors) {
+  const clamped = Math.max(1, Math.min(SHADER_MAX_COLOR_SLOTS, Math.floor(maxColors)));
+  return `#ifdef GL_ES
 precision highp float;
 #endif
 
@@ -37,6 +36,8 @@ uniform vec2 u_mouse;
 uniform float u_time;
 uniform float u_xpos;
 uniform float u_ypos;
+uniform int u_paletteLength;
+uniform vec3 u_palette[${clamped}];
 
 vec3 mod289(vec3 x) {
     return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -56,7 +57,7 @@ vec4 taylorInvSqrt(vec4 r)
 }
 
 float snoise(vec3 v)
-    { 
+{ 
     const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
     const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
 
@@ -115,42 +116,145 @@ float snoise(vec3 v)
     m = m * m;
     return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
                                                                 dot(p2,x2), dot(p3,x3) ) );
+}
+
+int clampToLength(int idx, int length) {
+    int clampedIdx = idx;
+    int maxIdx = length - 1;
+    if (clampedIdx < 0) {
+        clampedIdx = 0;
+    }
+    if (maxIdx < 0) {
+        maxIdx = 0;
+    }
+    if (clampedIdx > maxIdx) {
+        clampedIdx = maxIdx;
+    }
+    return clampedIdx;
+}
+
+vec3 paletteColor(int idx, int length) {
+    int target = clampToLength(idx, length);
+    vec3 selected = u_palette[0];
+    for (int i = 0; i < ${clamped}; i++) {
+        if (i < length && i == target) {
+            selected = u_palette[i];
+        }
+    }
+    return selected;
+}
+
+void main() {
+    if (u_paletteLength < 1) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
     }
 
-    void main() {
-        vec3 color1 = vec3(75.0/255.0,144.0/255.0,210.0/255.0);
-        vec3 color2 = vec3(252.0/255.0,244.0/255.0,111.0/255.0);
-        vec3 color3 = vec3(244.0/255.0,238.0/255.0,87.0/255.0);
-        vec3 color4 = vec3(242.0/255.0,232.0/255.0,99.0/255.0);
-        vec3 color5 = vec3(242.0/255.0,205.0/255.0,96.0/255.0);
-        vec3 color6 = vec3(255.0/255.0,255.0/255.0,255.0/255.0);
-        vec2 lt = vec2(gl_FragCoord.x + u_xpos, gl_FragCoord.y + u_ypos);
-        vec2 st = lt.xy/u_resolution.xy;
-        st.x *= u_resolution.x/u_resolution.y;
-        vec3 color = vec3(0.0);
-        vec2 pos = vec2(st*0.6);
-        float DF = 0.0;
-        float a = 0.0;
-        vec2 vel = vec2(u_time*.1);
-        st.xy *= 0.4;
-        float r = snoise(vec3(st.x,st.y,u_time * 0.1));
-    	  
-    	if(r > 0.60){
-    		color = color5;
-    	} else if(r > 0.20){
-    		color = color4;
-    	} else if(r > -0.20){
-    		color = color3;
-    	} else if(r > -0.60){
-    		color = color2;
-    	} else if(r > -2.0){
-    		color = color1;
-    	}
-    	  
-    
-    	gl_FragColor = vec4(color,1.0);
+    vec2 lt = vec2(gl_FragCoord.x + u_xpos, gl_FragCoord.y + u_ypos);
+    vec2 st = lt.xy/u_resolution.xy;
+    st.x *= u_resolution.x/u_resolution.y;
+    st.xy *= 0.4;
+    float r = snoise(vec3(st.x,st.y,u_time * 0.1));
+
+    float r2 = snoise(vec3(st.x*1.5, st.y*1.5, u_time * 0.12));
+    float r3 = snoise(vec3(st.x*0.8, st.y*0.8, u_time * 0.07));
+    float mixNoise = mix(r, r2, 0.5) * 0.6 + r3 * 0.4;
+
+    float normalizedNoise = clamp(mixNoise * 0.5 + 0.5, 0.0, 0.9999);
+    int colorIndex = int(floor(normalizedNoise * float(u_paletteLength)));
+    int safeIndex = clampToLength(colorIndex, u_paletteLength);
+    vec3 color = paletteColor(safeIndex, u_paletteLength);
+
+    float blend = smoothstep(-0.2, 0.6, snoise(vec3(st.x*2.0, st.y*2.0, u_time*0.2)));
+    int accentIndex = clampToLength(u_paletteLength - 1, u_paletteLength);
+    vec3 accent = mix(paletteColor(0, u_paletteLength), paletteColor(accentIndex, u_paletteLength), 0.5);
+    color = mix(color, accent, blend * 0.25);
+
+    gl_FragColor = vec4(color,1.0);
+}
+`;
+}
+var fragmentShader_default = createFragmentShaderSource;
+
+// src/Background.tsx
+import { jsx } from "react/jsx-runtime";
+var HEX_COLOR_REGEX = /^#?(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+function parseHexColorToFloats(value) {
+  const trimmed = value.trim();
+  if (!trimmed)
+    return null;
+  const normalized = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+  if (!HEX_COLOR_REGEX.test(normalized))
+    return null;
+  let hex = normalized.slice(1);
+  if (hex.length === 3) {
+    hex = hex.split("").map((char) => char + char).join("");
+  }
+  const intVal = parseInt(hex, 16);
+  const r = (intVal >> 16 & 255) / 255;
+  const g = (intVal >> 8 & 255) / 255;
+  const b = (intVal & 255) / 255;
+  return [r, g, b];
+}
+function buildPaletteBuffer(primary, fallback, capacity) {
+  const size = Math.max(1, capacity);
+  const buffer = new Float32Array(size * 3);
+  const fillFrom = (source) => {
+    let filled = 0;
+    for (const color of source) {
+      const parsed = parseHexColorToFloats(color);
+      if (!parsed)
+        continue;
+      buffer[filled * 3] = parsed[0];
+      buffer[filled * 3 + 1] = parsed[1];
+      buffer[filled * 3 + 2] = parsed[2];
+      filled += 1;
+      if (filled >= size)
+        break;
     }
-    `;
+    return filled;
+  };
+  let used = fillFrom(primary);
+  if (used === 0) {
+    buffer.fill(0);
+    used = fillFrom(fallback);
+  }
+  if (used === 0) {
+    buffer[0] = 1;
+    buffer[1] = 1;
+    buffer[2] = 1;
+    used = 1;
+  }
+  return { buffer, length: Math.min(used, size) };
+}
+var RESERVED_FRAGMENT_UNIFORMS = 6;
+var Background = ({ colors }) => {
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+  const startTimeRef = useRef(Date.now());
+  useEffect(() => {
+    if (typeof window === "undefined")
+      return;
+    const canvas = canvasRef.current;
+    if (!canvas)
+      return;
+    startTimeRef.current = Date.now();
+    const glRaw = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (!glRaw) {
+      console.warn("WebGL not supported");
+      return;
+    }
+    const gl = glRaw;
+    const maxFragmentUniformVectors = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS);
+    const paletteCapacity = Math.max(
+      1,
+      Math.min(SHADER_MAX_COLOR_SLOTS, maxFragmentUniformVectors - RESERVED_FRAGMENT_UNIFORMS)
+    );
+    const fragmentShaderSource = fragmentShader_default(paletteCapacity);
+    const vertexShaderSource = `attribute vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position, 0, 1);
+}`;
     function compileShader(localGl, type, source) {
       const shader = localGl.createShader(type);
       if (!shader)
@@ -193,7 +297,21 @@ float snoise(vec3 v)
     const locationOfMouse = gl.getUniformLocation(program, "u_mouse");
     const locationOfXpos = gl.getUniformLocation(program, "u_xpos");
     const locationOfYpos = gl.getUniformLocation(program, "u_ypos");
+    const locationOfPalette = gl.getUniformLocation(program, "u_palette[0]");
+    const locationOfPaletteLength = gl.getUniformLocation(program, "u_paletteLength");
     const mouse = [0, 0];
+    const paletteSource = Array.isArray(colors) && colors.length > 0 ? colors : DEFAULT_COLORS;
+    const { buffer: paletteBuffer, length: paletteLength } = buildPaletteBuffer(
+      paletteSource,
+      DEFAULT_COLORS,
+      paletteCapacity
+    );
+    if (locationOfPalette && paletteBuffer.length) {
+      gl.uniform3fv(locationOfPalette, paletteBuffer);
+    }
+    if (locationOfPaletteLength) {
+      gl.uniform1i(locationOfPaletteLength, paletteLength);
+    }
     function resizeCanvas() {
       if (!canvas)
         return;
@@ -244,7 +362,7 @@ float snoise(vec3 v)
       } catch (e) {
       }
     };
-  }, []);
+  }, [colors]);
   return /* @__PURE__ */ jsx("canvas", { ref: canvasRef, className: _default.canvas });
 };
 var Background_default = Background;

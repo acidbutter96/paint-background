@@ -1,5 +1,27 @@
-// Exported fragment shader string with a broader paint-like palette
-const fragmentShader = `#ifdef GL_ES
+export const DEFAULT_COLORS = [
+  '#36B0AA',
+  '#99CCFF',
+  '#FF78B4',
+  '#B4FF64',
+  '#AF7AC5',
+  '#FF7F6E',
+  '#4B90D2',
+  '#FCF46F',
+  '#F4EE57',
+  '#F2E863',
+  '#F2CD60',
+  '#FFFFFF',
+  '#FF5A82',
+  '#AAFFDC',
+  '#FFA546',
+];
+
+export const SHADER_MAX_COLOR_SLOTS = 32;
+
+export function createFragmentShaderSource(maxColors: number): string {
+  const clamped = Math.max(1, Math.min(SHADER_MAX_COLOR_SLOTS, Math.floor(maxColors)));
+
+  return `#ifdef GL_ES
 precision highp float;
 #endif
 
@@ -10,6 +32,8 @@ uniform vec2 u_mouse;
 uniform float u_time;
 uniform float u_xpos;
 uniform float u_ypos;
+uniform int u_paletteLength;
+uniform vec3 u_palette[${clamped}];
 
 vec3 mod289(vec3 x) {
     return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -29,7 +53,7 @@ vec4 taylorInvSqrt(vec4 r)
 }
 
 float snoise(vec3 v)
-    { 
+{ 
     const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
     const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
 
@@ -88,95 +112,63 @@ float snoise(vec3 v)
     m = m * m;
     return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
                                                                 dot(p2,x2), dot(p3,x3) ) );
+}
+
+int clampToLength(int idx, int length) {
+    int clampedIdx = idx;
+    int maxIdx = length - 1;
+    if (clampedIdx < 0) {
+        clampedIdx = 0;
     }
+    if (maxIdx < 0) {
+        maxIdx = 0;
+    }
+    if (clampedIdx > maxIdx) {
+        clampedIdx = maxIdx;
+    }
+    return clampedIdx;
+}
 
-    void main() {
-        // Expanded "paint" palette
-        vec3 teal        = vec3(54.0/255.0, 176.0/255.0, 170.0/255.0);
-        vec3 lightBlue   = vec3(153.0/255.0, 204.0/255.0, 255.0/255.0);
-        vec3 pink        = vec3(255.0/255.0, 120.0/255.0, 180.0/255.0);
-        vec3 lime        = vec3(180.0/255.0, 255.0/255.0, 100.0/255.0);
-        vec3 purple      = vec3(175.0/255.0, 122.0/255.0, 197.0/255.0);
-        vec3 coral       = vec3(255.0/255.0, 127.0/255.0, 110.0/255.0);
-        vec3 deepBlue    = vec3(75.0/255.0,144.0/255.0,210.0/255.0);
-        vec3 yellowSoft  = vec3(252.0/255.0,244.0/255.0,111.0/255.0);
-        vec3 paleYellow  = vec3(244.0/255.0,238.0/255.0,87.0/255.0);
-        vec3 warmYellow  = vec3(242.0/255.0,232.0/255.0,99.0/255.0);
-        vec3 amber       = vec3(242.0/255.0,205.0/255.0,96.0/255.0);
-        vec3 whiteColor  = vec3(1.0,1.0,1.0);
-
-        vec2 lt = vec2(gl_FragCoord.x + u_xpos, gl_FragCoord.y + u_ypos);
-        vec2 st = lt.xy/u_resolution.xy;
-        st.x *= u_resolution.x/u_resolution.y;
-        vec3 color = vec3(0.0);
-        vec2 pos = vec2(st*0.6);
-        float DF = 0.0;
-        float a = 0.0;
-        vec2 vel = vec2(u_time*.1);
-        st.xy *= 0.4;
-        float r = snoise(vec3(st.x,st.y,u_time * 0.1));
-
-        float r2 = snoise(vec3(st.x*1.5, st.y*1.5, u_time * 0.12));
-        float r3 = snoise(vec3(st.x*0.8, st.y*0.8, u_time * 0.07));
-        float mixNoise = mix(r, r2, 0.5) * 0.6 + r3 * 0.4;
-
-        if (mixNoise > 0.65) {
-            color = pink;
-        } else if (mixNoise > 0.40) {
-            color = lightBlue;
-        } else if (mixNoise > 0.15) {
-            color = lime;
-        } else if (mixNoise > -0.10) {
-            color = coral;
-        } else if (mixNoise > -0.40) {
-            color = teal;
-        } else if (mixNoise > -0.75) {
-            color = purple;
-        } else if (mixNoise > -1.2) {
-            color = deepBlue;
-        } else if (mixNoise > -1.6) {
-            color = amber;
-        } else {
-            color = whiteColor;
+vec3 paletteColor(int idx, int length) {
+    int target = clampToLength(idx, length);
+    vec3 selected = u_palette[0];
+    for (int i = 0; i < ${clamped}; i++) {
+        if (i < length && i == target) {
+            selected = u_palette[i];
         }
-
-        float blend = smoothstep(-0.2, 0.6, snoise(vec3(st.x*2.0, st.y*2.0, u_time*0.2)));
-        color = mix(color, warmYellow * 0.6 + paleYellow * 0.4, blend * 0.25);
-
-        gl_FragColor = vec4(color,1.0);
     }
-    
-    // Palette helper: return interpolated color from a list of paint-like colors
-    vec3 paletteAt(float i) {
-        // 14 colors (index 0..13)
-        if (i < 0.5) return vec3(255.0/255.0, 120.0/255.0, 180.0/255.0); // pink
-        if (i < 1.5) return vec3(153.0/255.0, 204.0/255.0, 255.0/255.0); // lightBlue
-        if (i < 2.5) return vec3(180.0/255.0, 255.0/255.0, 100.0/255.0); // lime
-        if (i < 3.5) return vec3(54.0/255.0, 176.0/255.0, 170.0/255.0); // teal
-        if (i < 4.5) return vec3(175.0/255.0, 122.0/255.0, 197.0/255.0); // purple
-        if (i < 5.5) return vec3(255.0/255.0, 127.0/255.0, 110.0/255.0); // coral
-        if (i < 6.5) return vec3(75.0/255.0,144.0/255.0,210.0/255.0); // deepBlue
-        if (i < 7.5) return vec3(252.0/255.0,244.0/255.0,111.0/255.0); // yellowSoft
-        if (i < 8.5) return vec3(244.0/255.0,238.0/255.0,87.0/255.0); // paleYellow
-        if (i < 9.5) return vec3(242.0/255.0,232.0/255.0,99.0/255.0); // warmYellow
-        if (i < 10.5) return vec3(242.0/255.0,205.0/255.0,96.0/255.0); // amber
-        if (i < 11.5) return vec3(255.0/255.0, 90.0/255.0, 130.0/255.0); // magenta
-        if (i < 12.5) return vec3(170.0/255.0, 255.0/255.0, 220.0/255.0); // mint
-        return vec3(255.0/255.0,165.0/255.0, 70.0/255.0); // orange
+    return selected;
+}
+
+void main() {
+    if (u_paletteLength < 1) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
     }
 
-    vec3 paletteMix(float idx) {
-        // palette length is 14
-        float n = 14.0;
-        // wrap idx into [0, n)
-        float i = mod(idx, n);
-        float i0 = floor(i);
-        float f = fract(i);
-        vec3 c0 = paletteAt(i0 + 0.0);
-        vec3 c1 = paletteAt(i0 + 1.0);
-        return mix(c0, c1, f);
-    }
+    vec2 lt = vec2(gl_FragCoord.x + u_xpos, gl_FragCoord.y + u_ypos);
+    vec2 st = lt.xy/u_resolution.xy;
+    st.x *= u_resolution.x/u_resolution.y;
+    st.xy *= 0.4;
+    float r = snoise(vec3(st.x,st.y,u_time * 0.1));
 
-    `;
+    float r2 = snoise(vec3(st.x*1.5, st.y*1.5, u_time * 0.12));
+    float r3 = snoise(vec3(st.x*0.8, st.y*0.8, u_time * 0.07));
+    float mixNoise = mix(r, r2, 0.5) * 0.6 + r3 * 0.4;
 
-export default fragmentShader;
+    float normalizedNoise = clamp(mixNoise * 0.5 + 0.5, 0.0, 0.9999);
+    int colorIndex = int(floor(normalizedNoise * float(u_paletteLength)));
+    int safeIndex = clampToLength(colorIndex, u_paletteLength);
+    vec3 color = paletteColor(safeIndex, u_paletteLength);
+
+    float blend = smoothstep(-0.2, 0.6, snoise(vec3(st.x*2.0, st.y*2.0, u_time*0.2)));
+    int accentIndex = clampToLength(u_paletteLength - 1, u_paletteLength);
+    vec3 accent = mix(paletteColor(0, u_paletteLength), paletteColor(accentIndex, u_paletteLength), 0.5);
+    color = mix(color, accent, blend * 0.25);
+
+    gl_FragColor = vec4(color,1.0);
+}
+`;
+}
+
+export default createFragmentShaderSource;
