@@ -1,6 +1,6 @@
 {
     "name": "@devbutter/paint-background",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "A small React client component that renders a WebGL paint-like background (full-screen canvas).",
     "main": "dist/index.js",
     "module": "dist/index.mjs",
